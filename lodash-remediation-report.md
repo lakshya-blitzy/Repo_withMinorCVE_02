@@ -196,26 +196,36 @@ Reported as evidence that the bump has no call-site consequence, not as the reme
 |---|---|---|
 | lodash references in the server | `grep -n "_" "server (1).js"` | only `1:const _ = require('lodash');` |
 | lodash calls in the server | `grep -c "_\\." "server (1).js"` | `0` |
-| lodash calls anywhere in the repository | the call-site search in the command block below | no match, exit status 1 |
+| lodash calls anywhere in the repository — searched over all 16 set-by-path helper names this change's risk surface involves: `_.unset`, `_.omit`, `_.pullAt`, `_.set`, `_.setWith`, `_.get`, `_.has`, `_.merge`, `_.mergeWith`, `_.zipObjectDeep`, `_.pick`, `_.update`, `_.updateWith`, `_.template`, `_.toNumber` and `_.trim` — the twelve §6's advisories name, together with `_.get`, `_.has`, `_.merge` and `_.mergeWith`; a strict superset of the plan's prescribed `_\.(unset\|omit\|set\|get\|template)\(` (the plan's §0.10.2 step 6 and §0.3.3), so the plan's own literal check over the repository's own code is still satisfied | the call-site search in the command block below | no match, exit status 1 |
 | Loaded module in a fresh process | `node -p "require('lodash').VERSION"` | `4.18.1` |
 
 ```bash
 grep -n "_" "server (1).js"        # → 1:const _ = require('lodash');
 grep -c "_\\." "server (1).js"     # → 0 (the count -c prints; the command exits 1 because the count is zero)
-grep -rnE "_\.(unset|omit|pullAt|set|get|template)\\(" . --exclude-dir=.git --exclude-dir=node_modules --exclude=lodash-remediation-report.md
+grep -rnE "_\.(unset|omit|pullAt|set|setWith|get|has|merge|mergeWith|zipObjectDeep|pick|update|updateWith|template|toNumber|trim)\\(" . --exclude-dir=.git --exclude-dir=node_modules --exclude=lodash-remediation-report.md
 # → no match, exit status 1
 
 # The same pattern against input that does call these functions, so the check can fail and this shows it matches:
-printf 'const _ = require("lodash");\n_.unset(o, ["__proto__", "x"]);\n_.pullAt(a, [0]);\n' |
-  grep -nE "_\.(unset|omit|pullAt|set|get|template)\\("
-# → 2:_.unset(o, ["__proto__", "x"]); and 3:_.pullAt(a, [0]); — exit status 0
+printf 'const _ = require("lodash");\n_.unset(o, ["__proto__", "x"]);\n_.pullAt(a, [0]);\n_.merge(a, {b: 1});\n_.toNumber("42");\n' |
+  grep -nE "_\.(unset|omit|pullAt|set|setWith|get|has|merge|mergeWith|zipObjectDeep|pick|update|updateWith|template|toNumber|trim)\\("
+# → 2:_.unset(o, ["__proto__", "x"]); and 3:_.pullAt(a, [0]); and 4:_.merge(a, {b: 1}); and 5:_.toNumber("42"); — exit status 0
 ```
 
-`node_modules/` is the derived, untracked install tree (§10): the 46 lines a search that includes it matches are lodash's own JSDoc examples (40, such as `_.unset(object, ['a', '0', 'b', 'c'])`) and six library-internal member calls the `_.set(`/`_.get(` alternatives also match (`this.__data__.set(` in `_setCacheAdd.js`, `lodash.js` and `lodash.min.js`; `this.__data__.get(` in `_stackGet.js`) — documentation and library internals, never a call site in this repository. A search that includes this record reports the transcription of the pattern and its positive control in the same way; the command excludes both for that reason.
+`node_modules/` is the derived, untracked install tree (§10): the search that includes it but still excludes this record
+matches 96 lines there, of which 85 are lodash's own JSDoc and comment examples (such as
+`_.unset(object, ['a', '0', 'b', 'c'])`, a real example line in the installed `lodash.js`) and 11 are code: the
+`this.__data__.set(`, `this.__data__.has(` and `this.__data__.get(` member calls in `_setCacheAdd.js`,
+`_setCacheHas.js`, `_stackGet.js`, `_stackHas.js`, `lodash.js` and `lodash.min.js` that the `_.set(`, `_.get(` and
+`_.has(` alternatives also reach, plus the in-source `_.pick(root, contextProps)` at `lodash.js:1450` —
+documentation and library internals, never a call site in this repository. A search that includes this record matches
+six of its own lines the same way — the positive control's input, the transcription of the matches that control
+returns, and four lines of this note, which quote the matching member calls and the JSDoc example above — so the
+command excludes the record as well.
 
-`_.unset`, `_.omit`, `_.pullAt`, `_.set` and `_.get` are never invoked, and the request handler ignores its `req`
-argument, so no request-derived key or array-wrapped path segment reaches any lodash function, and
-this repository had no reachable exploit path to begin with: the only reference to the package is the
+`_.unset`, `_.omit`, `_.pullAt`, `_.set`, `_.setWith`, `_.get`, `_.has`, `_.merge`, `_.mergeWith`, `_.zipObjectDeep`,
+`_.pick`, `_.update`, `_.updateWith`, `_.template`, `_.toNumber` and `_.trim` are never invoked, and the request
+handler ignores its `req` argument, so no request-derived key or array-wrapped path segment reaches any lodash
+function, and this repository had no reachable exploit path to begin with: the only reference to the package is the
 line-1 import, `_` is never invoked, and the handler replies with a constant body.
 
 **How the finding is closed.** By moving the pinned version, not by cutting a reachable path — static
