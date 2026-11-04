@@ -103,7 +103,7 @@ pre-existing key at `package-lock.json:10`, still holding the single pin, now `4
 | Installed module version | `node -p "require('lodash').VERSION"` | `4.18.1` |
 | Installed package manifest | `node -p "require('./node_modules/lodash/package.json').version"` | `4.18.1` |
 | Derived tree record | `node -p "require('./node_modules/.package-lock.json').packages['node_modules/lodash'].version"` | `4.18.1` (derived, untracked, not committed) |
-| Rewrite not served from a warm cache | `CI=true npm ci --no-fund --cache <fresh-cache-dir>` | exit **0** with an empty cache, resolving `4.18.1` |
+| Rewrite not served from a warm cache | `CI=true npm ci --no-fund --cache /tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures/freshcache` | exit **0** with an empty cache, resolving `4.18.1` — the directory was created empty for this install, which then populated it |
 | Manifest, root record and entry agree | `node -p` over all three | `4.18.1\|4.18.1\|4.18.1` |
 
 ## 5. Scan evidence
@@ -117,17 +117,29 @@ here: it reports `found 0 vulnerabilities` on the vulnerable tree as well.
 | After the change (`npm audit --json`) | **0** | `"vulnerabilities": {}`, `metadata.vulnerabilities` = `{info:0, low:0, moderate:0, high:0, critical:0, total:0}` |
 | After the change (`npm audit`, text) | **0** | `found 0 vulnerabilities` |
 
-**`GHSA-f23m-r3pf-42rh` is absent after the change, and `grep -c f23m audit-after.json` = 0.** It is
-absent from the *before* capture too, and that is correct filtering rather than a gap in the advisory
-feed: the advisory scopes `lodash` to the single version `= 4.17.23`, patched in 4.18.1, and the locked
-4.17.15 is outside that set, so no audit configuration can report this identifier against 4.17.15.
-What the feed reported for the 4.17.15 tree is the five lodash advisories listed in §6 below — a
-correction to the plan's "same six advisories before" expectation, and the count is stated as measured
-here and in §6. Closure is therefore evidenced by the installed tree leaving the advisory's affected
-set, together with the package-level audit moving from one vulnerable package (`lodash`, aggregate
-severity `high`, exit status **1**, capture `audit-before.json`) at 4.17.15 to none at 4.18.1 in both
-manifests and in the installed tree (`"vulnerabilities": {}`, exit status **0**, capture
-`audit-after.json`).
+**`GHSA-f23m-r3pf-42rh` is absent after the change, and `grep -c f23m` returns 0 for both audit
+captures, `audit-before.json` and `audit-after.json`.** It is absent from the *before* capture too,
+and that is correct filtering rather than a gap in the advisory feed: the advisory scopes `lodash`
+to the single version `= 4.17.23`, patched in 4.18.1, and the locked 4.17.15 is outside that set, so
+no audit configuration can report this identifier against 4.17.15. What the feed reported for the
+4.17.15 tree is the five lodash advisories listed in §6 below — a correction to the plan's "same six
+advisories before" expectation, and the count is stated as measured here and in §6. The feed behaves
+as that entry says, re-measured during this run: `POST
+https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` with `{"lodash":["4.17.15"]}` returns
+exactly those five and none of them `GHSA-f23m-r3pf-42rh`; with `{"lodash":["4.17.23"]}` it returns
+that identifier with `vulnerable_versions` `"=4.17.23"`; and with `{"lodash":["4.18.0","4.18.1"]}` it
+returns `{}`.
+
+**R3's identifier criterion — the plan's requirement that the scan no longer lists
+`GHSA-f23m-r3pf-42rh` and no longer exits 1 on it — is therefore satisfied only vacuously here, and
+is recorded that way rather than implied to have been met.** The before → after exit-status change
+(1 → 0) is produced by the five sibling advisories leaving the tree with the bump, not by this
+advisory, which the scan lists in neither state. Closure is therefore evidenced by the installed
+tree leaving the advisory's affected set, together with the package-level audit moving from one
+vulnerable package (`lodash`, aggregate severity `high`, exit status **1**, capture
+`audit-before.json`) at 4.17.15 to none at 4.18.1 in both manifests and in the installed tree
+(`"vulnerabilities": {}`, exit status **0**, capture `audit-after.json`) — in place of the
+identifier's own absence from the scan, which this host's feed cannot produce.
 
 ## 6. Advisories reported, and what happened to them
 
@@ -146,16 +158,22 @@ worked around, no `overrides` or `resolutions` entry was added, and no pin silen
 ## 7. Behaviour parity
 
 The version move must change nothing observable. The pre-change baseline was captured on the
-committed tree — `npm ci --no-fund` first (the tree was not installed yet), then a freshly started
-process — and only then were the manifests edited.
+committed tree — `npm ci --no-fund` first (exit **0**, installing the committed `4.17.15`; the tree was
+not installed yet) — from a freshly started process, and the manifests were edited only afterwards.
+
+All six capture artifacts named in this record live in
+`/tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures` —
+`audit-before.json`, `audit-after.json`, `headers-before.txt`, `body-before.txt`, `headers-after.txt`
+and `body-after.txt` — outside the checkout and uncommitted; the bare filenames in the table below are
+relative to that directory.
 
 | Capture | Command | Value |
 |---|---|---|
 | Baseline response | `curl -s -D headers-before.txt -o body-before.txt -w "%{http_code}" http://127.0.0.1:3000/` | `200` |
 | Baseline body | `wc -c`, `sha256sum` | 14 bytes, sha256 `c98c24b677eff44860afea6f493bbaec5bb1c4cbb209c6fc2bbb47f66ff2ad31` |
 | Baseline headers | `cat headers-before.txt` | `HTTP/1.1 200 OK`, `Date: …`, `Connection: keep-alive`, `Keep-Alive: timeout=5`, `Content-Length: 14` — no `Content-Type` |
-| After response | `curl -s -D headers-after.txt -o body-after.txt …` | `200`, 14 bytes, same sha256 |
-| After, arbitrary path | `curl … http://127.0.0.1:3000/nonexistent` | `200` with the byte-identical body |
+| After response | `curl -s -D /tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures/headers-after.txt -o /tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures/body-after.txt -w "%{http_code}" http://127.0.0.1:3000/` | `200`, 14 bytes, same sha256 |
+| After, arbitrary path | `curl -s -w "%{http_code}" http://127.0.0.1:3000/nonexistent` | `200` with the byte-identical body |
 | Header comparison | `diff <(grep -v '^Date:' headers-before.txt) <(grep -v '^Date:' headers-after.txt)` | no output, exit 0 (`Date` is a timestamp and is excluded by construction) |
 | Body comparison | `cmp body-before.txt body-after.txt` | no output, exit 0 |
 | Startup line | `node "server (1).js"` | `Server running at http://127.0.0.1:3000/` on both sides |
@@ -267,5 +285,8 @@ the tarball it fetches. Rollback deliberately reintroduces the finding and is a 
 never a resolution.
 
 Environment: node v22.23.4, npm 11.21.0, registry `https://registry.npmjs.org/`, no `.npmrc`, no
-environment variable and no secret involved. All capture artifacts live outside the checkout in the
-run's private scratch directory and are not committed.
+environment variable and no secret involved. All six capture artifacts — `audit-before.json`,
+`audit-after.json`, `headers-before.txt`, `body-before.txt`, `headers-after.txt` and `body-after.txt` —
+live outside the checkout in
+`/tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures`
+and are not committed.
