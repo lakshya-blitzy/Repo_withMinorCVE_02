@@ -11,7 +11,7 @@ function.
 | Attribute | Value |
 |---|---|
 | Release installed | `lodash@4.18.1` |
-| Advisory closed | GHSA-f23m-r3pf-42rh / CVE-2026-2950, CWE-1321 — prototype pollution in `_.unset` and `_.omit` via array-wrapped path segments |
+| Advisory closed | GHSA-f23m-r3pf-42rh / CVE-2026-2950, CWE-1321 — prototype pollution in `_.unset`, `_.omit` and `_.pullAt` via array-wrapped path segments (the GitHub advisory summary and the OSV description name all three functions; the CVE title and its NVD description name `_.unset` and `_.omit`) |
 | Affected range | GHSA-f23m-r3pf-42rh's own affected set for `lodash`, `lodash-es` and `lodash-amd` is `= 4.17.23`, patched in 4.18.1. The wider `<=4.17.23` npm's package-level scan reports for the package on the 4.17.15 tree (§5) is an aggregate contributed by the sibling advisories named in §6, not by this one, and 4.17.15 lies outside this advisory's set altogether — what the 4.17.15 tree really carried is the earlier `_.unset`/`_.omit` advisory GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`), which the same bump clears |
 | Version this repository carried | 4.17.15, pinned at `package.json:5`, `package-lock.json:11` and `package-lock.json:15` — outside this advisory's affected set (`= 4.17.23`); the advisory the 4.17.15 tree was inside is GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`) together with the four other siblings in §6, all cleared by the same move |
 | Advisory databases' first-patched release | 4.18.1 for `lodash`, `lodash-es` and `lodash-amd` — the GitHub Advisory Database's `first_patched_version`, OSV's `fixed` event and the CVE record's unaffected version — and 4.18.0 only for the standalone `lodash.unset`/`lodash.omit` packages. 4.18.0 carries the same guard, but 4.18.1 is targeted instead because it is the version the CVE record and NVD call unaffected for `lodash`, the version `npm audit` itself offers as the fix, the current `latest` dist-tag, and the only one of the two that is not deprecated as a bad release — npm's deprecation notice for 4.18.0 reads `Bad release. Please use lodash@4.17.21 instead.` (re-read with `npm view lodash@4.18.0 deprecated` during the run), because 4.18.0 shipped a broken template build (`ReferenceError: assignWith is not defined`, lodash issue #6167). 4.18.1 is not a source-identical republish of 4.18.0: nine files differ between the two published tarballs, the `_.unset`/`_.omit` guard itself byte-equal except for one dropped advisory-comment line, while `template.js` and `fromPairs.js` add the requires that repair 4.18.0's broken template build |
@@ -38,7 +38,7 @@ this advisory is high. The two figures measure different things and are not conf
 report; the per-advisory column in §6 is npm's severity for each advisory, stated as reported.
 
 **Root cause.** lodash 4.17.23 addressed CVE-2025-13465 (GHSA-xxjr-mmjv-4gpg), the earlier prototype
-pollution in `_.unset` and `_.omit`, with a **string-key-only guard**: it blocks `__proto__`,
+pollution in `_.unset`, `_.omit` and `_.pullAt`, with a **string-key-only guard**: it blocks `__proto__`,
 `constructor` and `prototype` only when they appear as string path members. That guard does not inspect
 array-wrapped segments of the same path, so a caller that passes the path as an array still bypasses it
 and reaches the prototype chain, deleting properties from `Object.prototype`, `Number.prototype` and
@@ -173,10 +173,24 @@ Reported as evidence that the bump has no call-site consequence, not as the reme
 |---|---|---|
 | lodash references in the server | `grep -n "_" "server (1).js"` | only `1:const _ = require('lodash');` |
 | lodash calls in the server | `grep -c "_\\." "server (1).js"` | `0` |
-| lodash calls anywhere | `grep -rnE "_\.(unset\|omit\|set\|get\|template)\(" . --exclude-dir=.git` | no match, exit 1 |
+| lodash calls anywhere in the repository | the call-site search in the command block below | no match, exit status 1 |
 | Loaded module in a fresh process | `node -p "require('lodash').VERSION"` | `4.18.1` |
 
-`_.unset`, `_.omit`, `_.set` and `_.get` are never invoked, and the request handler ignores its `req`
+```bash
+grep -n "_" "server (1).js"        # → 1:const _ = require('lodash');
+grep -c "_\\." "server (1).js"     # → 0 (the count -c prints; the command exits 1 because the count is zero)
+grep -rnE "_\.(unset|omit|pullAt|set|get|template)\\(" . --exclude-dir=.git --exclude-dir=node_modules --exclude=lodash-remediation-report.md
+# → no match, exit status 1
+
+# The same pattern against input that does call these functions, so the check can fail and this shows it matches:
+printf 'const _ = require("lodash");\n_.unset(o, ["__proto__", "x"]);\n_.pullAt(a, [0]);\n' |
+  grep -nE "_\.(unset|omit|pullAt|set|get|template)\\("
+# → 2:_.unset(o, ["__proto__", "x"]); and 3:_.pullAt(a, [0]); — exit status 0
+```
+
+`node_modules/` is the derived, untracked install tree (§10): the 46 lines a search that includes it matches are lodash's own JSDoc examples (40, such as `_.unset(object, ['a', '0', 'b', 'c'])`) and six library-internal member calls the `_.set(`/`_.get(` alternatives also match (`this.__data__.set(` in `_setCacheAdd.js`, `lodash.js` and `lodash.min.js`; `this.__data__.get(` in `_stackGet.js`) — documentation and library internals, never a call site in this repository. A search that includes this record reports the transcription of the pattern and its positive control in the same way; the command excludes both for that reason.
+
+`_.unset`, `_.omit`, `_.pullAt`, `_.set` and `_.get` are never invoked, and the request handler ignores its `req`
 argument, so no request-derived key or array-wrapped path segment reaches any lodash function, and
 this repository had no reachable exploit path to begin with: the only reference to the package is the
 line-1 import, `_` is never invoked, and the handler replies with a constant body.
