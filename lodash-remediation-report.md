@@ -84,9 +84,13 @@ call site to harden (§8), and no source change is in this fix's scope.
 Unchanged by the edit: `"lockfileVersion": 3`, `"requires": true`, `"license": "MIT"`, the entry's
 field order `version`, `resolved`, `integrity`, `license`, the `packages` key set
 `["", "node_modules/lodash"]`, two-space indentation, LF endings and the trailing newline. No
-`overrides`, `resolutions`, `hasInstallScript` or `dependencies` key was added
-(`grep -nE '"(overrides|resolutions|hasInstallScript)"'` → exit 1), and no range operator appears next
-to either pin (`grep -nE 'lodash": *"[\^~x*]'` → exit 1).
+`overrides`, `resolutions` or `hasInstallScript` key was added to either manifest
+(`grep -nE '"(overrides|resolutions|hasInstallScript)"' package.json package-lock.json` → exit 1), and
+no key was added to the `node_modules/lodash` entry, which still carries exactly `version`, `resolved`,
+`integrity` and `license`. The `dependencies` key is not new either: it is the root record's
+pre-existing key at `package-lock.json:10`, still holding the single pin, now `4.18.1`
+(`package-lock.json:11`). No range operator appears next to either pin
+(`grep -nE 'lodash": *"[\^~x*]' package.json package-lock.json` → exit 1).
 
 ## 4. Install evidence
 
@@ -227,9 +231,19 @@ would be named here.
 
 ## 13. Rollback
 
-Rollback, if ever needed: `git checkout -- package.json package-lock.json && npm ci --no-fund`
-restores `lodash` 4.17.15 and re-verifies its digest. Rollback deliberately reintroduces the finding
-and is a recovery action only, never a resolution.
+Rollback, if ever needed: `git checkout 44b04ea9ccf95c952233fc7165bd45c8da2a91a6 -- package.json
+package-lock.json && npm ci --no-fund` restores `lodash` 4.17.15 and re-verifies its digest. The
+pre-change revision is named in that command because the change is committed: the 4.17.15 values live
+only at `44b04ea9ccf95c952233fc7165bd45c8da2a91a6`, so a bare `git checkout -- package.json
+package-lock.json` would restore the committed `4.18.1` state instead (the pin at `package.json:5` and
+both the root record and the artifact record in `package-lock.json` read `4.18.1` in the committed
+tree) and the following `npm ci --no-fund` would install `4.18.1`. The command above restores the
+pre-change pair — version `4.17.15`, resolved
+`https://registry.npmjs.org/lodash/-/lodash-4.17.15.tgz`, integrity
+`sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==`,
+the digest the registry publishes for `4.17.15` — and `npm ci --no-fund` verifies that digest against
+the tarball it fetches. Rollback deliberately reintroduces the finding and is a recovery action only,
+never a resolution.
 
 Environment: node v22.23.4, npm 11.21.0, registry `https://registry.npmjs.org/`, no `.npmrc`, no
 environment variable and no secret involved. All capture artifacts live outside the checkout in the
