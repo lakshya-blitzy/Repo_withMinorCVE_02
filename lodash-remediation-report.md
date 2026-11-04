@@ -103,7 +103,7 @@ pre-existing key at `package-lock.json:10`, still holding the single pin, now `4
 | Installed module version | `node -p "require('lodash').VERSION"` | `4.18.1` |
 | Installed package manifest | `node -p "require('./node_modules/lodash/package.json').version"` | `4.18.1` |
 | Derived tree record | `node -p "require('./node_modules/.package-lock.json').packages['node_modules/lodash'].version"` | `4.18.1` (derived, untracked, not committed) |
-| Rewrite not served from a warm cache | `CI=true npm ci --no-fund --cache /tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures/freshcache` | exit **0** with an empty cache, resolving `4.18.1` — the directory was created empty for this install, which then populated it |
+| Rewrite not served from a warm cache | `CI=true npm ci --no-fund --cache /tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures/freshcache` | exit **0** with an empty cache, resolving `4.18.1` — the directory was created empty for this install, which then populated it. The `--cache` path is the run's private scratch directory for the captures (§7), outside the checkout and not preserved after the run; the exit status and the resolved version recorded here are the durable values, carried with the rest of §3–§13 |
 | Manifest, root record and entry agree | `node -p` over all three | `4.18.1\|4.18.1\|4.18.1` |
 
 ## 5. Scan evidence
@@ -161,11 +161,16 @@ The version move must change nothing observable. The pre-change baseline was cap
 committed tree — `npm ci --no-fund` first (exit **0**, installing the committed `4.17.15`; the tree was
 not installed yet) — from a freshly started process, and the manifests were edited only afterwards.
 
-All six capture artifacts named in this record live in
+All six capture artifacts named in this record were written to
 `/tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures` —
 `audit-before.json`, `audit-after.json`, `headers-before.txt`, `body-before.txt`, `headers-after.txt`
-and `body-after.txt` — outside the checkout and uncommitted; the bare filenames in the table below are
-relative to that directory.
+and `body-after.txt` — the run's private, per-wave scratch directory, written outside the checkout so
+the commit scope stays at the three mapped files. That directory is not preserved beyond the run, and
+neither is the plan's literal `/tmp/lodash-remediation` path, so this paragraph is a record of where
+the evidence was produced rather than a store a reader can re-inspect. The bare filenames in the table
+below and the absolute paths in that table's command column both name files in that directory, and
+every value they held is transcribed in §3–§13 of this record: those transcribed values are the
+durable evidence.
 
 | Capture | Command | Value |
 |---|---|---|
@@ -287,6 +292,8 @@ never a resolution.
 Environment: node v22.23.4, npm 11.21.0, registry `https://registry.npmjs.org/`, no `.npmrc`, no
 environment variable and no secret involved. All six capture artifacts — `audit-before.json`,
 `audit-after.json`, `headers-before.txt`, `body-before.txt`, `headers-after.txt` and `body-after.txt` —
-live outside the checkout in
-`/tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures`
-and are not committed.
+were written to the run's private, per-wave scratch directory
+`/tmp/blitzy/scratch/57c07a95-b8f5-4d0e-913a-f828b8e9a980/w-011/lodash-remediation-captures`,
+outside the checkout and uncommitted. That private, per-run scratch directory is not preserved after
+the run, and neither is the plan's literal `/tmp/lodash-remediation` path: §3–§13 carry every value
+they held, and those transcribed values are the durable evidence (see §7).
