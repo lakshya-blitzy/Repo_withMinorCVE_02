@@ -12,8 +12,8 @@ function.
 |---|---|
 | Release installed | `lodash@4.18.1` |
 | Advisory closed | GHSA-f23m-r3pf-42rh / CVE-2026-2950, CWE-1321 — prototype pollution in `_.unset`, `_.omit` and `_.pullAt` via array-wrapped path segments (the GitHub advisory summary and the OSV description name all three functions; the CVE title and its NVD description name `_.unset` and `_.omit`) |
-| Affected range | GHSA-f23m-r3pf-42rh's own affected set for `lodash`, `lodash-es` and `lodash-amd` is `= 4.17.23`, patched in 4.18.1. The wider `<=4.17.23` npm's package-level scan reports for the package on the 4.17.15 tree (§5) is an aggregate contributed by the sibling advisories named in §6, not by this one, and 4.17.15 lies outside this advisory's set altogether — what the 4.17.15 tree really carried is the earlier `_.unset`/`_.omit` advisory GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`), which the same bump clears |
-| Version this repository carried | 4.17.15, pinned at `package.json:5`, `package-lock.json:11` and `package-lock.json:15` — outside this advisory's affected set (`= 4.17.23`); the advisory the 4.17.15 tree was inside is GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`) together with the four other siblings in §6, all cleared by the same move |
+| Affected range | This advisory's `lodash` set is scoped to the single version `= 4.17.23`, patched in 4.18.1 (the same for `lodash-es` and `lodash-amd`), by four sources: the GitHub Advisory Database, OSV, the CVE CNA record (openjs, at cve.org) and npm's own advisory feed — the npm feed returns this identifier for `4.17.23` and not for `4.17.15`, OSV lists the affected versions as `["4.17.23"]`, and the CVE record gives `lodash` affected at `4.17.23` with `lessThan 4.18.1` and unaffected at 4.18.1 — so 4.17.15 is genuinely outside that set for those four. NVD publishes a wider configuration for the same CVE — CPE `cpe:2.3:a:lodash:lodash` vulnerable at `versionStartIncluding 4.0.0` / `versionEndExcluding 4.17.23` (`4.0.0 <= v < 4.17.23`, the same range for `lodash-es` and `lodash-amd`) — which places the pinned 4.17.15 inside it, so a scanner keyed on NVD's CPE range flags this repository's committed 4.17.15 for this advisory; NVD is the source whose 5.3 score §2 cites, and the plan's own wording (`<= 4.17.23` for the package, with 4.17.15 treated as affected) reads it NVD's way, which is why this row qualifies the exclusion instead of stating it absolutely. The wider `<=4.17.23` npm's package-level scan reports for the package on the 4.17.15 tree (§5) is an aggregate contributed by the sibling advisories named in §6, not by this one, and what the 4.17.15 tree really carried is the earlier `_.unset`/`_.omit` advisory GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`), which the same bump clears |
+| Version this repository carried | 4.17.15, pinned at `package.json:5`, `package-lock.json:11` and `package-lock.json:15` — outside the affected set the four sources named in the row above publish for this advisory (`= 4.17.23`), but inside NVD's CPE range for the same CVE (`4.0.0 <= v < 4.17.23`), so a scanner keyed on NVD's range flags it; the advisory the 4.17.15 tree was inside under either reading is GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 (`>=4.0.0 <4.17.23`) together with the four other siblings in §6, all cleared by the same move |
 | Advisory databases' first-patched release | 4.18.1 for `lodash`, `lodash-es` and `lodash-amd` — the GitHub Advisory Database's `first_patched_version`, OSV's `fixed` event and the CVE record's unaffected version — and 4.18.0 only for the standalone `lodash.unset`/`lodash.omit` packages. 4.18.0 carries the same guard, but 4.18.1 is targeted instead because it is the version the CVE record and NVD call unaffected for `lodash`, the version `npm audit` itself offers as the fix, the current `latest` dist-tag, and the only one of the two that is not deprecated as a bad release — npm's deprecation notice for 4.18.0 reads `Bad release. Please use lodash@4.17.21 instead.` (re-read with `npm view lodash@4.18.0 deprecated` during the run), because 4.18.0 shipped a broken template build (`ReferenceError: assignWith is not defined`, lodash issue #6167). 4.18.1 is not a source-identical republish of 4.18.0: nine files differ between the two published tarballs, the `_.unset`/`_.omit` guard itself byte-equal except for one dropped advisory-comment line, while `template.js` and `fromPairs.js` add the requires that repair 4.18.0's broken template build |
 | Version line the fix stays inside | `lodash` 4.x — no major-version jump. Advisories left open elsewhere on the line are not a licence to leave it, and the release that npm's deprecation notice for 4.18.0 names (4.17.21) still sits inside two advisory ranges (GHSA-r5fr-rjxr-66jc `>=4.0.0 <=4.17.23` and GHSA-xxjr-mmjv-4gpg `>=4.0.0 <=4.17.22`, measured with `npm audit --json` against a lockfile pinned to 4.17.21). The target carries no advisory of its own |
 | Registry resolution | `https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz`, published digest `sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==`, not deprecated, not unpublished — re-read from `npm view lodash@4.18.1 dist.integrity dist.tarball` and `npm view lodash dist-tags` (`{ latest: '4.18.1' }`) during the run |
@@ -45,9 +45,12 @@ and reaches the prototype chain, deleting properties from `Object.prototype`, `N
 `String.prototype`. Deleting a built-in member is a denial of service against any code that later calls
 it; the advisory is explicit that the original behaviour cannot be overwritten. The affected range npm's
 scan reports for the package on the 4.17.15 tree is `<= 4.17.23` (§5), an aggregate of the sibling
-advisories; this advisory's own affected set is narrower — `= 4.17.23`, patched in 4.18.1 — so 4.17.15
-lies outside it and was vulnerable through the earlier `_.unset`/`_.omit` advisory
-GHSA-xxjr-mmjv-4gpg (`>=4.0.0 <4.17.23`), which the same bump clears.
+advisories; this advisory's own affected set is narrower — `= 4.17.23`, patched in 4.18.1, as the GitHub
+Advisory Database, OSV, the CVE CNA record and npm's own feed all publish it — so 4.17.15 lies outside it
+for those four sources, while NVD's configuration for the same CVE reaches it (CPE
+`cpe:2.3:a:lodash:lodash` vulnerable `4.0.0 <= v < 4.17.23`), which is the reading the plan's
+`<= 4.17.23` wording takes. The 4.17.15 tree was vulnerable under either reading through the earlier
+`_.unset`/`_.omit` advisory GHSA-xxjr-mmjv-4gpg (`>=4.0.0 <4.17.23`), which the same bump clears.
 
 **Guidance.** The advisory states there is **no workaround**: it prescribes **upgrading** and nothing
 else, so the remediation is the version move rather than a code-level guard, a package substitution or
@@ -119,12 +122,15 @@ here: it reports `found 0 vulnerabilities` on the vulnerable tree as well.
 
 **`GHSA-f23m-r3pf-42rh` is absent after the change, and `grep -c f23m` returns 0 for both audit
 captures, `audit-before.json` and `audit-after.json`.** It is absent from the *before* capture too,
-and that is correct filtering rather than a gap in the advisory feed: the advisory scopes `lodash`
-to the single version `= 4.17.23`, patched in 4.18.1, and the locked 4.17.15 is outside that set, so
-no audit configuration can report this identifier against 4.17.15. What the feed reported for the
-4.17.15 tree is the five lodash advisories listed in §6 below — a correction to the plan's "same six
-advisories before" expectation, and the count is stated as measured here and in §6. The feed behaves
-as that entry says, re-measured during this run: `POST
+and that is correct filtering rather than a gap in the advisory feed: the four sources that scope
+`lodash` for this advisory — the GitHub Advisory Database, OSV, the CVE CNA record and npm's own feed —
+all cap its affected set at the single version `= 4.17.23`, patched in 4.18.1, and the locked 4.17.15
+lies outside that set for those four, so none of them can report this identifier against 4.17.15. A
+scanner keyed on NVD's wider CPE configuration for the same CVE (`4.0.0 <= v < 4.17.23`, §1) will report
+it against 4.17.15, which is why §1 states the exclusion as qualified rather than absolute. What the feed
+reported for the 4.17.15 tree is the five lodash advisories listed in §6 below — a correction to the
+plan's "same six advisories before" expectation, and the count is stated as measured here and in §6.
+The feed behaves as that entry says, re-measured during this run: `POST
 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` with `{"lodash":["4.17.15"]}` returns
 exactly those five and none of them `GHSA-f23m-r3pf-42rh`; with `{"lodash":["4.17.23"]}` it returns
 that identifier with `vulnerable_versions` `"=4.17.23"`; and with `{"lodash":["4.18.0","4.18.1"]}` it
@@ -139,7 +145,11 @@ tree leaving the advisory's affected set, together with the package-level audit 
 vulnerable package (`lodash`, aggregate severity `high`, exit status **1**, capture
 `audit-before.json`) at 4.17.15 to none at 4.18.1 in both manifests and in the installed tree
 (`"vulnerabilities": {}`, exit status **0**, capture `audit-after.json`) — in place of the
-identifier's own absence from the scan, which this host's feed cannot produce.
+identifier's own absence from the scan, which this host's feed cannot produce because it caps this
+advisory's `lodash` set at the single version `= 4.17.23`. That conclusion holds under either reading of
+the range: 4.18.1 lies outside every one of them — NVD's configuration ends *before* 4.17.23, and the
+other four cap the set at the single version `= 4.17.23` — a fresh install from the rewritten lockfile
+resolves `require('lodash').VERSION` to 4.18.1, and the package-level scan exits **0** (captures in §4).
 
 ## 6. Advisories reported, and what happened to them
 
