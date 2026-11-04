@@ -14,14 +14,46 @@ function.
 | Advisory closed | GHSA-f23m-r3pf-42rh / CVE-2026-2950, CWE-1321 — prototype pollution in `_.unset` and `_.omit` via array-wrapped path segments |
 | Affected range | `lodash <= 4.17.23` |
 | Version this repository carried | 4.17.15, pinned at `package.json:5`, `package-lock.json:11` and `package-lock.json:15` |
-| Advisory databases name 4.18.0 as the patched release | 4.18.0 carries the code fix; 4.18.1 is targeted instead because it is the version the CVE record and NVD call unaffected for `lodash`, the version `npm audit` itself offers as the fix, the current `latest` dist-tag, and the only one of the two that is not deprecated as a bad release |
+| Advisory databases name 4.18.0 as the patched release | 4.18.0 carries the code fix; 4.18.1 is targeted instead because it is the version the CVE record and NVD call unaffected for `lodash`, the version `npm audit` itself offers as the fix, the current `latest` dist-tag, and the only one of the two that is not deprecated as a bad release — npm's deprecation notice for 4.18.0 reads `Bad release. Please use lodash@4.17.21 instead.` (re-read with `npm view lodash@4.18.0 deprecated` during the run), because 4.18.0 shipped a broken template build (`ReferenceError: assignWith is not defined`, lodash issue #6167) and 4.18.1 republished it with no source diff |
+| Version line the fix stays inside | `lodash` 4.x — no major-version jump. Advisories left open elsewhere on the line are not a licence to leave it, and the release that npm's deprecation notice for 4.18.0 names (4.17.21) still sits inside three advisory ranges. The target carries no advisory of its own |
 | Registry resolution | `https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz`, published digest `sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==`, not deprecated, not unpublished — re-read from `npm view lodash@4.18.1 dist.integrity dist.tarball` and `npm view lodash dist-tags` (`{ latest: '4.18.1' }`) during the run |
 
 The change was applied by **editing both manifests directly and installing with `npm ci`**, never
 `npm install`, and never with `npm audit fix --force` (which would rewrite the exact pin as the caret
-range `^4.18.1`).
+range `^4.18.1`). The project's own recorded remediation mechanism was `npm install lodash@4.18.1
+--save-exact`, which preserves the exact pin by construction; the request forbids `npm install`
+outright and mandates `npm ci`, so the version, the resolved URL and the integrity digest were edited
+by hand — a hand edit cannot write a caret — and the install ran as `npm ci --no-fund` from the
+rewritten lockfile. Both constraints hold at once.
 
-## 2. The committed lockfile entry, quoted verbatim
+## 2. Severity, root cause and the advisory's guidance
+
+**Severity, stated once here and used consistently.** This advisory is **moderate**: the CNA's
+(openjs) CVSS 3.1 base score is **6.5** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L`) and NVD
+publishes **5.3** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N`), noting that its score differs from
+the CNA's. The aggregate `npm audit` reports for the `lodash` *package* at 4.17.15 is **high**, measured
+in this run as `metadata.vulnerabilities = {info:0, low:0, moderate:0, high:1, critical:0, total:1}`
+(§5) — one package flagged `high` because five older advisories ride on the same package, not because
+this advisory is high. The two figures measure different things and are not conflated anywhere in this
+report; the per-advisory column in §6 is npm's severity for each advisory, stated as reported.
+
+**Root cause.** lodash 4.17.23 addressed CVE-2025-13465 (GHSA-xxjr-mmjv-4gpg), the earlier prototype
+pollution in `_.unset` and `_.omit`, with a **string-key-only guard**: it blocks `__proto__`,
+`constructor` and `prototype` only when they appear as string path members. That guard does not inspect
+array-wrapped segments of the same path, so a caller that passes the path as an array still bypasses it
+and reaches the prototype chain, deleting properties from `Object.prototype`, `Number.prototype` and
+`String.prototype`. Deleting a built-in member is a denial of service against any code that later calls
+it; the advisory is explicit that the original behaviour cannot be overwritten. The affected range is
+`lodash <= 4.17.23`, which is the range the scan reports for the package on the 4.17.15 tree (§5).
+
+**Guidance.** The advisory states there is **no workaround**: it prescribes **upgrading** and nothing
+else, so the remediation is the version move rather than a code-level guard, a package substitution or
+a suppressed finding. The general prototype-pollution hardening guidance (reject `__proto__`,
+`constructor` and `prototype` segments in set-by-path helpers, prefer `Map`, freeze built-in
+prototypes) is recorded for completeness and deliberately not applied as a code change: there is no
+call site to harden (§8), and no source change is in this fix's scope.
+
+## 3. The committed lockfile entry, quoted verbatim
 
 `package-lock.json` after the change (537 bytes before, 534 bytes after; exactly four values moved):
 
@@ -56,18 +88,18 @@ field order `version`, `resolved`, `integrity`, `license`, the `packages` key se
 (`grep -nE '"(overrides|resolutions|hasInstallScript)"'` → exit 1), and no range operator appears next
 to either pin (`grep -nE 'lodash": *"[\^~x*]'` → exit 1).
 
-## 3. Install evidence
+## 4. Install evidence
 
 | Check | Command | Result |
 |---|---|---|
-| Install from the rewritten lockfile | `CI=true npm ci --no-fund` | exit **0** — `added 1 package, and audited 2 packages in 328ms` |
+| Install from the rewritten lockfile | `CI=true npm ci --no-fund` | exit **0** — `added 1 package, and audited 2 packages`; `found 0 vulnerabilities` |
 | Installed module version | `node -p "require('lodash').VERSION"` | `4.18.1` |
 | Installed package manifest | `node -p "require('./node_modules/lodash/package.json').version"` | `4.18.1` |
 | Derived tree record | `node -p "require('./node_modules/.package-lock.json').packages['node_modules/lodash'].version"` | `4.18.1` (derived, untracked, not committed) |
 | Rewrite not served from a warm cache | `CI=true npm ci --no-fund --cache <fresh-cache-dir>` | exit **0** with an empty cache, resolving `4.18.1` |
 | Manifest, root record and entry agree | `node -p` over all three | `4.18.1\|4.18.1\|4.18.1` |
 
-## 4. Scan evidence
+## 5. Scan evidence
 
 Run online from the repository root after the install. `npm audit --offline` is not used as evidence
 here: it reports `found 0 vulnerabilities` on the vulnerable tree as well.
@@ -81,25 +113,26 @@ here: it reports `found 0 vulnerabilities` on the vulnerable tree as well.
 **`GHSA-f23m-r3pf-42rh` is absent after the change, and `grep -c f23m audit-after.json` = 0.** The
 identifier is also absent from this host's *before* output: the advisory data the scan queries
 reported the 4.17.15 tree through five lodash advisories, not six. That is a correction to the plan's
-"same six advisories before" expectation — the measured before-set is the five below, and the
-version move still leaves the vulnerable range `<=4.17.23` behind in both manifests and in the
-installed tree.
+"same six advisories before" expectation — the measured before-set is the five below. Closure is
+therefore evidenced both by the identifier's absence after the change and by the package leaving the
+affected range `<=4.17.23` the scan reports, moving from one vulnerable package at 4.17.15 to none at
+4.18.1 in both manifests and in the installed tree.
 
-## 5. Advisories reported, and what happened to them
+## 6. Advisories reported, and what happened to them
 
-| Advisory | Severity (before) | Disposition |
+| Advisory | npm audit severity reported for it (before) | Disposition |
 |---|---|---|
 | GHSA-35jh-r3h4-6jhm / CVE-2021-23337 — command injection via `_.template`'s `variable` option | high | Closed by the same bump; not separately addressed |
 | GHSA-p6mc-m468-83gw / CVE-2020-8203 — prototype pollution in `pick`/`set`/`setWith`/`update`/`updateWith`/`zipObjectDeep` | high | Closed by the same bump; not separately addressed |
 | GHSA-29mw-wpgm-hmr9 / CVE-2020-28500 — ReDoS in `toNumber`/`trim` | moderate | Closed by the same bump; not separately addressed |
 | GHSA-r5fr-rjxr-66jc / CVE-2026-4800 — code injection via `_.template` imports key names | high | Closed by the same bump; not separately addressed |
-| GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 — prototype pollution in `_.unset`/`_.omit` | moderate | Closed by the same bump; not separately addressed |
+| GHSA-xxjr-mmjv-4gpg / CVE-2025-13465 — prototype pollution in `_.unset`, `_.omit` and `_.pullAt` | moderate | Closed by the same bump; not separately addressed |
 
 **No advisory survives at `4.18.1`** (after-set empty), and **no advisory appeared after the change
 that was not already present before it** (`comm -13` of the two identifier sets is empty). Nothing was
 worked around, no `overrides` or `resolutions` entry was added, and no pin silences a finding.
 
-## 6. Behaviour parity
+## 7. Behaviour parity
 
 The version move must change nothing observable. The pre-change baseline was captured on the
 committed tree — `npm ci --no-fund` first (the tree was not installed yet), then a freshly started
@@ -121,7 +154,7 @@ instance started before the install keeps serving 4.17.15 from memory. Port 3000
 exclusive, so the port was probed free (node `net.connect` probe → `FREE`, exit 0) before each start,
 each process was killed by its exact child pid and awaited, and the port was released after each probe.
 
-## 7. Reachability invariant
+## 8. Reachability invariant
 
 Reported as evidence that the bump has no call-site consequence, not as the remediation.
 
@@ -130,14 +163,20 @@ Reported as evidence that the bump has no call-site consequence, not as the reme
 | lodash references in the server | `grep -n "_" "server (1).js"` | only `1:const _ = require('lodash');` |
 | lodash calls in the server | `grep -c "_\\." "server (1).js"` | `0` |
 | lodash calls anywhere | `grep -rnE "_\.(unset\|omit\|set\|get\|template)\(" . --exclude-dir=.git` | no match, exit 1 |
-| Loaded module in a fresh process | `node -e "…require('lodash').VERSION"` | `4.18.1` |
+| Loaded module in a fresh process | `node -p "require('lodash').VERSION"` | `4.18.1` |
 
 `_.unset`, `_.omit`, `_.set` and `_.get` are never invoked, and the request handler ignores its `req`
-argument, so no request-derived key or array-wrapped path segment reaches any lodash function. The
-find is closed by removing the vulnerable implementation from the installed tree, which no later call
-path can re-reach.
+argument, so no request-derived key or array-wrapped path segment reaches any lodash function, and
+this repository had no reachable exploit path to begin with: the only reference to the package is the
+line-1 import, `_` is never invoked, and the handler replies with a constant body.
 
-## 8. Integrity negative control
+**How the finding is closed.** By moving the pinned version, not by cutting a reachable path — static
+scanning reads the manifests and the lockfile, and runtime scanning inspects process memory, so the
+artifact's version in both places is what clears it. The vulnerable implementation is removed from the
+installed tree rather than guarded, so no later call path can re-reach it. The reachability evidence
+above is what shows the bump changes no call site; it is not the remediation.
+
+## 9. Integrity negative control
 
 Built in an isolated scratch copy from the committed pair, with the version and resolved URL bumped
 to 4.18.1 and **the 4.17.15 digest left in place**:
@@ -151,16 +190,19 @@ to 4.18.1 and **the 4.17.15 digest left in place**:
 This is why the digest was replaced rather than only the version, and why the install was repeated
 above with a fresh cache.
 
-## 9. Diff and commit hygiene
+## 10. Diff and commit hygiene
 
-`git diff --stat` → `package-lock.json | 8 ++++----`, `package.json | 2 +-`, 5 insertions and 5
-deletions; the lockfile hunk changes four values and nothing else (no record added, none removed).
-`git status --short` lists `M package-lock.json`, `M package.json` and this report as added; the
-derived `node_modules/` tree (including `node_modules/.package-lock.json`) stays untracked and is not
-committed; no `.gitignore` was created, and no second lockfile exists. `"server (1).js"` is
+`git diff --stat 44b04ea HEAD -- package.json package-lock.json` → `package-lock.json | 8 ++++----`,
+`package.json | 2 +-`, 5 insertions and 5 deletions; the lockfile hunk changes four values and nothing
+else (no record added, none removed).
+The change touches exactly these three paths and nothing else — `package.json`,
+`package-lock.json` and this report — with each path staged explicitly, never by `git add -A` or
+`git add .`. The derived `node_modules/` tree (including `node_modules/.package-lock.json`) stays
+untracked and is not committed; no `.gitignore` was created, and no second lockfile, test file,
+dependency, script, CI configuration or configuration file was added. `"server (1).js"` is
 byte-unchanged. A secret-pattern scan over the changed files and the server returned nothing.
 
-## 10. Whole-package gate and rollback
+## 11. Whole-package gate
 
 The project's own gate, run from the repository root, exited 0 end to end:
 
@@ -172,6 +214,18 @@ CI=true npm ci --no-fund && node --check "server (1).js" && node -p "require('lo
 followed by the runtime leg: start `node "server (1).js"` → `curl` → `200` with the 14-byte body
 matching the baseline → stop the server. The project ships no test suite, no test script and no
 devDependencies, so there is no coverage gate to attach and none was invented.
+
+## 12. Fallback decision
+
+The request's fallback — if no fixed release exists, make the vulnerable code path unreachable
+instead, record that decision and its reason, and never silently accept or suppress the finding —
+**was not triggered**. 4.18.1 is published, is not deprecated, installs from the rewritten lockfile
+with npm verifying the published digest (§4), and resolves from an empty cache, so the fixed release
+exists and the version move is the remediation. Had it been uninstallable, this section would carry
+the unreachable-path decision and its reason rather than a silent pass, and the surviving finding
+would be named here.
+
+## 13. Rollback
 
 Rollback, if ever needed: `git checkout -- package.json package-lock.json && npm ci --no-fund`
 restores `lodash` 4.17.15 and re-verifies its digest. Rollback deliberately reintroduces the finding
